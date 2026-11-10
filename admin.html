@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作者后台 - 小说内容管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 前端打包ZIP用的库，CDN引入，无需安装 -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <style>
+        .block-item { border: 1px solid #e7e5e4; border-radius: 8px; padding: 12px; margin-bottom: 8px; background: #fafaf9; }
+        .chapter-item.active { background: #292524; color: white; }
+    </style>
+</head>
+<body class="bg-stone-100 min-h-screen">
+    <div class="max-w-6xl mx-auto px-4 py-6">
+        <!-- 顶部操作栏 -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-stone-800">📖 小说作者后台</h1>
+            <div class="flex gap-3">
+                <label class="px-4 py-2 bg-white border border-stone-300 rounded-lg cursor-pointer hover:bg-stone-50">
+                    导入现有数据
+                    <input type="file" id="importBook" accept=".json" class="hidden">
+                </label>
+                <button id="exportBtn" class="px-4 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-900">
+                    导出并下载数据包
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-6">
+            <!-- 左侧：章节列表 -->
+            <div class="col-span-3 bg-white rounded-xl p-4 h-[calc(100vh-120px)] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold text-stone-700">章节列表</h2>
+                    <button id="addChapterBtn" class="text-sm px-3 py-1 bg-stone-100 rounded hover:bg-stone-200">+ 新增</button>
+                </div>
+                <div id="chapterList" class="space-y-1">
+                    <!-- 章节列表自动渲染 -->
+                </div>
+            </div>
+
+            <!-- 右侧：编辑区 -->
+            <div class="col-span-9 bg-white rounded-xl p-6 h-[calc(100vh-120px)] overflow-y-auto">
+                <!-- 书籍基础信息 -->
+                <div class="mb-6 pb-6 border-b border-stone-200">
+                    <h3 class="font-bold text-stone-700 mb-3">书籍基础信息</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-stone-500 mb-1">书名</label>
+                            <input id="bookTitle" type="text" class="w-full border border-stone-300 rounded px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-stone-500 mb-1">作者</label>
+                            <input id="bookAuthor" type="text" class="w-full border border-stone-300 rounded px-3 py-2">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm text-stone-500 mb-1">封面路径</label>
+                            <input id="bookCover" type="text" class="w-full border border-stone-300 rounded px-3 py-2" placeholder="./assets/cover.png">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm text-stone-500 mb-1">简介</label>
+                            <textarea id="bookDesc" rows="2" class="w-full border border-stone-300 rounded px-3 py-2"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 章节内容编辑 -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-stone-700">章节内容编辑</h3>
+                        <div class="flex gap-2">
+                            <button id="addTextBtn" class="text-sm px-3 py-1 bg-stone-100 rounded hover:bg-stone-200">+ 添加文字段落</button>
+                            <button id="addImageBtn" class="text-sm px-3 py-1 bg-stone-100 rounded hover:bg-stone-200">+ 添加插图</button>
+                            <button id="deleteChapterBtn" class="text-sm px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">删除本章</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm text-stone-500 mb-1">章节标题</label>
+                        <input id="chapterTitle" type="text" class="w-full border border-stone-300 rounded px-3 py-2">
+                    </div>
+
+                    <div id="contentBlocks" class="mb-6">
+                        <!-- 内容块自动渲染 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 默认初始数据
+        let bookData = {
+            title: "雾林密符",
+            author: "肖恩",
+            cover: "./assets/cover.png",
+            description: "小说简介",
+            chapters: [
+                { id: 1, title: "第一章 初入山林" }
+            ]
+        };
+
+        // 章节内容存储 key: chapterId, value: chapterData
+        let chaptersContent = {
+            1: {
+                title: "第一章 初入山林",
+                content: [
+                    { type: "text", text: "这是第一章的正文内容。" }
+                ]
+            }
+        };
+
+        let currentChapterId = 1;
+
+        // ========== 初始化 ==========
+        function init() {
+            renderChapterList();
+            loadChapter(currentChapterId);
+            bindEvents();
+            // 自动从本地缓存恢复
+            const saved = localStorage.getItem("novel_admin_data");
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    bookData = data.bookData;
+                    chaptersContent = data.chaptersContent;
+                    currentChapterId = bookData.chapters[0]?.id || 1;
+                    renderChapterList();
+                    loadChapter(currentChapterId);
+                } catch(e) {}
+            }
+        }
+
+        // 自动保存到本地
+        function autoSave() {
+            localStorage.setItem("novel_admin_data", JSON.stringify({
+                bookData,
+                chaptersContent
+            }));
+        }
+
+        // ========== 渲染章节列表 ==========
+        function renderChapterList() {
+            const list = document.getElementById("chapterList");
+            list.innerHTML = "";
+            bookData.chapters.forEach(chap => {
+                const div = document.createElement("div");
+                div.className = `chapter-item px-3 py-2 rounded cursor-pointer hover:bg-stone-100 ${chap.id === currentChapterId ? 'active' : ''}`;
+                div.textContent = chap.title;
+                div.addEventListener("click", () => {
+                    saveCurrentChapter();
+                    currentChapterId = chap.id;
+                    renderChapterList();
+                    loadChapter(currentChapterId);
+                });
+                list.appendChild(div);
+            });
+            // 填充书籍基础信息
+            document.getElementById("bookTitle").value = bookData.title;
+            document.getElementById("bookAuthor").value = bookData.author;
+            document.getElementById("bookCover").value = bookData.cover;
+            document.getElementById("bookDesc").value = bookData.description;
+        }
+
+        // ========== 加载章节内容 ==========
+        function loadChapter(id) {
+            const chapter = chaptersContent[id];
+            if (!chapter) return;
+            
+            document.getElementById("chapterTitle").value = chapter.title;
+            const blocksContainer = document.getElementById("contentBlocks");
+            blocksContainer.innerHTML = "";
+
+            chapter.content.forEach((block, index) => {
+                const blockDiv = document.createElement("div");
+                blockDiv.className = "block-item";
+                blockDiv.dataset.index = index;
+
+                if (block.type === "text") {
+                    blockDiv.innerHTML = `
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm text-stone-500">📝 文字段落</span>
+                            <div class="flex gap-1">
+                                <button class="move-up text-xs px-2 py-1 bg-white border rounded">↑</button>
+                                <button class="move-down text-xs px-2 py-1 bg-white border rounded">↓</button>
+                                <button class="delete-block text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded">删除</button>
+                            </div>
+                        </div>
+                        <textarea class="w-full border border-stone-300 rounded px-3 py-2 text-sm" rows="3">${block.text}</textarea>
+                    `;
+                } else if (block.type === "image") {
+                    blockDiv.innerHTML = `
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm text-stone-500">🖼️ 插图</span>
+                            <div class="flex gap-1">
+                                <button class="move-up text-xs px-2 py-1 bg-white border rounded">↑</button>
+                                <button class="move-down text-xs px-2 py-1 bg-white border rounded">↓</button>
+                                <button class="delete-block text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded">删除</button>
+                            </div>
+                        </div>
+                        <input type="text" class="w-full border border-stone-300 rounded px-3 py-2 text-sm mb-2" placeholder="图片路径，如 ./assets/images/chapter1/1.jpg" value="${block.src || ''}">
+                        <input type="text" class="w-full border border-stone-300 rounded px-3 py-2 text-sm" placeholder="图片说明（可选）" value="${block.alt || ''}">
+                    `;
+                }
+
+                blocksContainer.appendChild(blockDiv);
+            });
+
+            bindBlockEvents();
+        }
+
+        // ========== 保存当前章节到内存 ==========
+        function saveCurrentChapter() {
+            const title = document.getElementById("chapterTitle").value;
+            const blocks = [];
+            
+            document.querySelectorAll("#contentBlocks .block-item").forEach(blockDiv => {
+                const textarea = blockDiv.querySelector("textarea");
+                const inputs = blockDiv.querySelectorAll("input");
+                
+		if (textarea) {
+    		// 按换行自动拆分段落，自动过滤空行、去掉首尾空格
+		    const paragraphs = textarea.value
+     		   .split('\n')
+    		    .map(line => line.trim())
+     		   .filter(line => line.length > 0);
+    
+ 		   paragraphs.forEach(para => {
+ 		       blocks.push({
+		            type: "text",
+    			    text: para
+ 		       });
+ 		   });
+		} else {
+                    blocks.push({
+                        type: "image",
+                        src: inputs[0].value,
+                        alt: inputs[1].value
+                    });
+                }
+            });
+
+            chaptersContent[currentChapterId] = {
+                title,
+                content: blocks
+            };
+
+            // 同步更新章节列表里的标题
+            const chap = bookData.chapters.find(c => c.id === currentChapterId);
+            if (chap) chap.title = title;
+            
+            // 保存书籍基础信息
+            bookData.title = document.getElementById("bookTitle").value;
+            bookData.author = document.getElementById("bookAuthor").value;
+            bookData.cover = document.getElementById("bookCover").value;
+            bookData.description = document.getElementById("bookDesc").value;
+
+            autoSave();
+            renderChapterList();
+        }
+
+        // ========== 绑定事件 ==========
+        function bindEvents() {
+            // 新增章节
+            document.getElementById("addChapterBtn").addEventListener("click", () => {
+                saveCurrentChapter();
+                const newId = bookData.chapters.length > 0 
+                    ? Math.max(...bookData.chapters.map(c => c.id)) + 1 
+                    : 1;
+                const newTitle = `第${newId}章 新章节`;
+                
+                bookData.chapters.push({ id: newId, title: newTitle });
+                chaptersContent[newId] = {
+                    title: newTitle,
+                    content: [{ type: "text", text: "在这里写正文..." }]
+                };
+                
+                currentChapterId = newId;
+                renderChapterList();
+                loadChapter(currentChapterId);
+            });
+
+            // 删除当前章节
+            document.getElementById("deleteChapterBtn").addEventListener("click", () => {
+                if (bookData.chapters.length <= 1) {
+                    alert("至少保留一章");
+                    return;
+                }
+                if (!confirm("确定删除当前章节吗？不可恢复")) return;
+                
+                delete chaptersContent[currentChapterId];
+                bookData.chapters = bookData.chapters.filter(c => c.id !== currentChapterId);
+                currentChapterId = bookData.chapters[0].id;
+                
+                renderChapterList();
+                loadChapter(currentChapterId);
+                autoSave();
+            });
+
+            // 添加文字块
+            document.getElementById("addTextBtn").addEventListener("click", () => {
+                saveCurrentChapter();
+                chaptersContent[currentChapterId].content.push({ type: "text", text: "" });
+                loadChapter(currentChapterId);
+            });
+
+            // 添加图片块
+            document.getElementById("addImageBtn").addEventListener("click", () => {
+                saveCurrentChapter();
+                chaptersContent[currentChapterId].content.push({ 
+                    type: "image", 
+                    src: "", 
+                    alt: "" 
+                });
+                loadChapter(currentChapterId);
+            });
+
+            // 导入现有 book.json
+            document.getElementById("importBook").addEventListener("change", async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const text = await file.text();
+                try {
+                    const imported = JSON.parse(text);
+                    bookData = imported;
+                    // 导入后章节内容留空，需要单独导入章节文件
+                    // 简单处理：导入后只保留章节列表，内容清空
+                    bookData.chapters.forEach(chap => {
+                        if (!chaptersContent[chap.id]) {
+                            chaptersContent[chap.id] = {
+                                title: chap.title,
+                                content: [{ type: "text", text: "" }]
+                            };
+                        }
+                    });
+                    currentChapterId = bookData.chapters[0]?.id || 1;
+                    renderChapterList();
+                    loadChapter(currentChapterId);
+                    autoSave();
+                    alert("导入成功，章节列表已更新");
+                } catch(err) {
+                    alert("导入失败，请检查文件格式");
+                }
+            });
+
+            // 导出数据包
+            document.getElementById("exportBtn").addEventListener("click", exportData);
+        }
+
+        // 内容块内部事件（上下移、删除）
+        function bindBlockEvents() {
+            document.querySelectorAll(".block-item").forEach((block, index) => {
+                block.querySelector(".delete-block").addEventListener("click", () => {
+                    saveCurrentChapter();
+                    chaptersContent[currentChapterId].content.splice(index, 1);
+                    loadChapter(currentChapterId);
+                });
+
+                block.querySelector(".move-up").addEventListener("click", () => {
+                    if (index === 0) return;
+                    saveCurrentChapter();
+                    const arr = chaptersContent[currentChapterId].content;
+                    [arr[index-1], arr[index]] = [arr[index], arr[index-1]];
+                    loadChapter(currentChapterId);
+                });
+
+                block.querySelector(".move-down").addEventListener("click", () => {
+                    const arr = chaptersContent[currentChapterId].content;
+                    if (index === arr.length - 1) return;
+                    saveCurrentChapter();
+                    [arr[index+1], arr[index]] = [arr[index], arr[index+1]];
+                    loadChapter(currentChapterId);
+                });
+            });
+        }
+
+        // ========== 导出ZIP数据包 ==========
+        async function exportData() {
+            saveCurrentChapter();
+            const zip = new JSZip();
+            const dataFolder = zip.folder("data");
+            
+            // 写入 book.json
+            dataFolder.file("book.json", JSON.stringify(bookData, null, 2));
+            
+            // 写入所有章节文件
+            const chaptersFolder = dataFolder.folder("chapters");
+            Object.keys(chaptersContent).forEach(id => {
+                chaptersFolder.file(`${id}.json`, JSON.stringify(chaptersContent[id], null, 2));
+            });
+
+            // 生成并下载
+            const blob = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "novel_data.zip";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // 页面离开前自动保存
+        window.addEventListener("beforeunload", saveCurrentChapter);
+
+        init();
+    </script>
+</body>
+</html>

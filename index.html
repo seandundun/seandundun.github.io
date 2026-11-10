@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小说阅读</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-stone-50 text-stone-800">
+    <div class="max-w-3xl mx-auto px-4 py-10">
+        <!-- 书籍信息区 -->
+        <div class="flex flex-col md:flex-row gap-8 mb-12">
+            <img id="bookCover" class="w-40 h-56 object-cover rounded shadow-md mx-auto md:mx-0" alt="书籍封面">
+            <div class="flex-1 text-center md:text-left">
+                <h1 id="bookTitle" class="text-3xl font-bold mb-2"></h1>
+                <p id="bookAuthor" class="text-stone-500 mb-4"></p>
+                <p id="bookDesc" class="text-stone-600 leading-relaxed"></p>
+            </div>
+        </div>
+
+        <!-- 章节列表 -->
+        <h2 class="text-xl font-bold mb-4 border-b border-stone-200 pb-2">章节目录</h2>
+        <div id="chapterList" class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <!-- JS自动填充章节 -->
+        </div>
+    </div>
+
+    <script>
+        // 加载书籍信息
+        fetch('./data/book.json')
+            .then(res => res.json())
+            .then(book => {
+                document.getElementById('bookCover').src = book.cover;
+                document.getElementById('bookTitle').textContent = book.title;
+                document.getElementById('bookAuthor').textContent = `作者：${book.author}`;
+                document.getElementById('bookDesc').textContent = book.description;
+
+                // 渲染章节列表
+                const list = document.getElementById('chapterList');
+                book.chapters.forEach(chap => {
+                    const a = document.createElement('a');
+                    a.href = `read.html?chapter=${chap.id}`;
+                    a.className = 'px-4 py-3 rounded hover:bg-stone-100 transition-colors border border-stone-200';
+                    a.textContent = chap.title;
+                    list.appendChild(a);
+                });
+            });
+    </script>
+</body>
+</html>
