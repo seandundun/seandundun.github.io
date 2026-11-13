@@ -3,111 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小说阅读</title>
+    <title>小说阅读 - 小书屋</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 阅读正文样式优化 */
         .novel-content p {
-            margin-bottom: 1.2em;
+            margin-bottom: 1.4em;
             line-height: 1.9;
             text-indent: 2em;
         }
+
         .novel-content img {
             width: 100%;
             border-radius: 8px;
             margin: 1.5em 0;
+            text-indent: 0;
         }
     </style>
 </head>
 <body class="bg-stone-50 text-stone-800">
-    <!-- 顶部导航 -->
-    <div class="sticky top-0 bg-stone-50/90 backdrop-blur border-b border-stone-200">
+    <!-- 全站统一顶部导航 -->
+    <nav class="bg-white border-b border-stone-200 sticky top-0 z-40">
         <div class="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center">
-            <a href="index.html" class="text-stone-600 hover:text-stone-900">← 返回目录</a>
-            <h2 id="chapterTitle" class="font-medium truncate mx-4"></h2>
+            <div class="flex gap-5 items-center">
+                <a href="index.html" class="text-stone-600 hover:text-stone-900">← 返回目录</a>
+                <span class="text-stone-300">|</span>
+                <a href="index.html" class="text-stone-600 hover:text-stone-900">小说馆</a>
+                <a href="accumulation.html" class="text-stone-600 hover:text-stone-900">语文积累</a>
+            </div>
             <span class="text-stone-400 text-sm" id="chapterNum"></span>
         </div>
+    </nav>
+
+    <!-- 章节标题 -->
+    <div class="max-w-2xl mx-auto px-4 pt-8 pb-4">
+        <h1 id="chapterTitle" class="text-2xl font-bold text-center text-stone-800"></h1>
     </div>
 
     <!-- 正文区域 -->
-    <div class="max-w-2xl mx-auto px-4 py-8">
+    <div class="max-w-2xl mx-auto px-4 py-6">
         <div id="novelContent" class="novel-content text-lg text-stone-700">
-            加载中...
+            <p class="text-center text-stone-400">加载中...</p>
         </div>
     </div>
 
     <!-- 底部翻页 -->
     <div class="max-w-2xl mx-auto px-4 py-8 border-t border-stone-200">
         <div class="flex justify-between gap-4">
-            <button id="prevBtn" class="flex-1 py-3 rounded border border-stone-300 hover:bg-stone-100 transition-colors">
+            <button id="prevBtn" class="flex-1 py-3 rounded border border-stone-300 hover:bg-stone-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 上一章
             </button>
-            <button id="nextBtn" class="flex-1 py-3 rounded bg-stone-800 text-white hover:bg-stone-900 transition-colors">
+            <button id="nextBtn" class="flex-1 py-3 rounded bg-stone-800 text-white hover:bg-stone-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 下一章
             </button>
         </div>
+        <p class="text-center text-stone-400 text-sm mt-4">
+            <a href="index.html" class="hover:text-stone-600">返回章节目录</a>
+        </p>
     </div>
 
     <script>
-        // 获取URL里的章节ID
-        const params = new URLSearchParams(window.location.search);
-        let currentChapterId = parseInt(params.get('chapter')) || 1;
-        let totalChapters = 0;
+                const params = new URLSearchParams(window.location.search);
+                let currentChapterId = parseInt(params.get('chapter')) || 1;
+                let totalChapters = 0;
+                let chapterIdList = [];
 
-        // 加载章节列表（用于翻页）
-        let chapterList = [];
-        fetch('./data/book.json')
-            .then(res => res.json())
-            .then(book => {
-                chapterList = book.chapters;
-                totalChapters = book.chapters.length;
-                loadChapter(currentChapterId);
-            });
+                // 兼容模式：书籍信息
+                function loadBookData() {
+                    return fetch('/api/book')
+                        .then(res => {
+                            if (!res.ok) throw new Error('api not available');
+                            return res.json();
+                        })
+                        .catch(() => fetch('./data/book.json').then(res => res.json()));
+                }
 
-        // 加载单章内容
-        function loadChapter(id) {
-            currentChapterId = id;
-            history.replaceState(null, '', `?chapter=${id}`);
-            
-            fetch(`./data/chapters/${id}.json`)
-                .then(res => res.json())
-                .then(chapter => {
-                    // 标题
-                    document.getElementById('chapterTitle').textContent = chapter.title;
-                    document.getElementById('chapterNum').textContent = `第 ${id} 章 / 共 ${totalChapters} 章`;
+                // 兼容模式：章节内容
+                function loadChapterContent(id) {
+                    return fetch(`/api/chapter/${id}`)
+                        .then(res => {
+                            if (!res.ok) throw new Error('api not available');
+                            return res.json();
+                        })
+                        .catch(() => fetch(`./data/chapters/${id}.json`).then(res => res.json()));
+                }
 
-                    // 渲染正文（图文混排）
-                    const content = document.getElementById('novelContent');
-                    content.innerHTML = '';
-                    chapter.content.forEach(item => {
-                        if (item.type === 'text') {
-                            const p = document.createElement('p');
-                            p.textContent = item.text;
-                            content.appendChild(p);
-                        } else if (item.type === 'image') {
-                            const img = document.createElement('img');
-                            img.src = item.src;
-                            img.alt = item.alt || '';
-                            content.appendChild(img);
-                        }
+                // 初始化加载
+                loadBookData()
+                    .then(book => {
+                        chapterIdList = book.chapters.map(c => c.id);
+                        totalChapters = book.chapters.length;
+                        loadChapter(currentChapterId);
                     });
 
-                    // 翻页按钮状态
-                    document.getElementById('prevBtn').disabled = id <= 1;
-                    document.getElementById('nextBtn').disabled = id >= totalChapters;
-                    
-                    // 滚动到顶部
-                    window.scrollTo(0, 0);
-                });
-        }
+                // 加载单章
+                function loadChapter(id) {
+                    currentChapterId = id;
+                    history.replaceState(null, '', `?chapter=${id}`);
+                    document.getElementById('novelContent').innerHTML = '<p class="text-center text-stone-400">加载中...</p>';
 
-        // 翻页事件
-        document.getElementById('prevBtn').addEventListener('click', () => {
-            if (currentChapterId > 1) loadChapter(currentChapterId - 1);
-        });
-        document.getElementById('nextBtn').addEventListener('click', () => {
-            if (currentChapterId < totalChapters) loadChapter(currentChapterId + 1);
-        });
+                    loadChapterContent(id)
+                        .then(chapter => {
+                            document.getElementById('chapterTitle').textContent = chapter.title;
+                            document.getElementById('chapterNum').textContent = `第 ${chapterIdList.indexOf(id) + 1} 章 / 共 ${totalChapters} 章`;
+
+                            const content = document.getElementById('novelContent');
+                            content.innerHTML = '';
+                            chapter.content.forEach(item => {
+                                if (item.type === 'text') {
+                                    const p = document.createElement('p');
+                                    p.textContent = item.text;
+                                    content.appendChild(p);
+                                } else if (item.type === 'image') {
+                                    const img = document.createElement('img');
+                                    img.src = item.src;
+                                    img.alt = item.alt || '';
+                                    content.appendChild(img);
+                                }
+                            });
+
+                            const currentIndex = chapterIdList.indexOf(id);
+                            document.getElementById('prevBtn').disabled = currentIndex <= 0;
+                            document.getElementById('nextBtn').disabled = currentIndex >= totalChapters - 1;
+
+                            window.scrollTo(0, 0);
+                        })
+                        .catch(() => {
+                            document.getElementById('novelContent').innerHTML = '<p class="text-center text-red-500">章节加载失败</p>';
+                        });
+                }
+
+                // 翻页
+                document.getElementById('prevBtn').addEventListener('click', () => {
+                    const currentIndex = chapterIdList.indexOf(currentChapterId);
+                    if (currentIndex > 0) loadChapter(chapterIdList[currentIndex - 1]);
+                });
+
+                document.getElementById('nextBtn').addEventListener('click', () => {
+                    const currentIndex = chapterIdList.indexOf(currentChapterId);
+                    if (currentIndex < totalChapters - 1) loadChapter(chapterIdList[currentIndex + 1]);
+                });
+
+                // 键盘翻页
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowLeft') document.getElementById('prevBtn').click();
+                    if (e.key === 'ArrowRight') document.getElementById('nextBtn').click();
+                });
     </script>
 </body>
 </html>

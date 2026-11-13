@@ -3,10 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小说阅读</title>
+    <title>小说馆 - 小书屋</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-stone-50 text-stone-800">
+    <!-- 全站统一顶部导航 -->
+    <nav class="bg-white border-b border-stone-200 sticky top-0 z-40">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex gap-6 items-center">
+            <a href="index.html" class="font-bold text-stone-800">小书屋</a>
+            <a href="index.html" class="text-stone-900 font-medium">小说馆</a>
+            <a href="accumulation.html" class="text-stone-600 hover:text-stone-900">语文积累</a>
+        </div>
+    </nav>
+
     <div class="max-w-3xl mx-auto px-4 py-10">
         <!-- 书籍信息区 -->
         <div class="flex flex-col md:flex-row gap-8 mb-12">
@@ -21,30 +30,41 @@
         <!-- 章节列表 -->
         <h2 class="text-xl font-bold mb-4 border-b border-stone-200 pb-2">章节目录</h2>
         <div id="chapterList" class="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <!-- JS自动填充章节 -->
+            <p class="text-stone-500 col-span-2 text-center py-8">加载中...</p>
         </div>
     </div>
 
     <script>
-        // 加载书籍信息
-        fetch('./data/book.json')
-            .then(res => res.json())
-            .then(book => {
-                document.getElementById('bookCover').src = book.cover;
-                document.getElementById('bookTitle').textContent = book.title;
-                document.getElementById('bookAuthor').textContent = `作者：${book.author}`;
-                document.getElementById('bookDesc').textContent = book.description;
+                // 兼容模式：优先调用后端API，失败则读取本地JSON
+                function loadBookData() {
+                    return fetch('/api/book')
+                        .then(res => {
+                            if (!res.ok) throw new Error('api not available');
+                            return res.json();
+                        })
+                        .catch(() => fetch('./data/book.json').then(res => res.json()));
+                }
 
-                // 渲染章节列表
-                const list = document.getElementById('chapterList');
-                book.chapters.forEach(chap => {
-                    const a = document.createElement('a');
-                    a.href = `read.html?chapter=${chap.id}`;
-                    a.className = 'px-4 py-3 rounded hover:bg-stone-100 transition-colors border border-stone-200';
-                    a.textContent = chap.title;
-                    list.appendChild(a);
-                });
-            });
+                loadBookData()
+                    .then(book => {
+                        document.getElementById('bookCover').src = book.cover;
+                        document.getElementById('bookTitle').textContent = book.title;
+                        document.getElementById('bookAuthor').textContent = `作者：${book.author}`;
+                        document.getElementById('bookDesc').textContent = book.description;
+
+                        const list = document.getElementById('chapterList');
+                        list.innerHTML = '';
+                        book.chapters.forEach(chap => {
+                            const a = document.createElement('a');
+                            a.href = `read.html?chapter=${chap.id}`;
+                            a.className = 'px-4 py-3 rounded hover:bg-stone-100 transition-colors border border-stone-200';
+                            a.textContent = chap.title;
+                            list.appendChild(a);
+                        });
+                    })
+                    .catch(() => {
+                        document.getElementById('chapterList').innerHTML = '<p class="text-stone-500 col-span-2 text-center py-8">加载失败，请检查后端服务是否启动</p>';
+                    });
     </script>
 </body>
 </html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语文积累 - 摘抄库</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tag-active {
+            background: #292524;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800">
+    <!-- 全站统一顶部导航 -->
+    <nav class="bg-white border-b border-stone-200 sticky top-0 z-40">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex gap-6 items-center">
+            <a href="index.html" class="font-bold text-stone-800">小书屋</a>
+            <a href="index.html" class="text-stone-600 hover:text-stone-900">小说馆</a>
+            <a href="accumulation.html" class="text-stone-900 font-medium">语文积累</a>
+        </div>
+    </nav>
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <h1 class="text-2xl font-bold mb-2">语文积累摘抄库</h1>
+        <p class="text-stone-500 mb-6">小学及初中课外阅读积累</p>
+
+        <!-- 标签筛选 -->
+        <div id="tagsBar" class="flex flex-wrap gap-2 mb-6">
+            <button class="tag-btn tag-active px-3 py-1 rounded-full text-sm border border-stone-300" data-tag="">全部</button>
+        </div>
+
+        <!-- 摘抄列表 -->
+        <div id="extractList" class="space-y-4">
+            <p class="text-stone-500 text-center py-8">加载中...</p>
+        </div>
+    </div>
+
+    <script>
+                let currentTag = "";
+
+                // 兼容模式：标签列表
+                function loadTagsData() {
+                    return fetch('/api/accumulation/tags')
+                        .then(res => {
+                            if (!res.ok) throw new Error('api not available');
+                            return res.json();
+                        })
+                        .catch(() => fetch('./data/accumulation.json')
+                            .then(res => res.json())
+                            .then(data => {
+                                const tags = new Set();
+                                data.items.forEach(i => i.tags.forEach(t => tags.add(t)));
+                                return { tags: Array.from(tags).sort() };
+                            })
+                        );
+                }
+
+                // 兼容模式：摘抄列表
+                function loadListData(tag) {
+                    const url = tag ? `/api/accumulation?tag=${encodeURIComponent(tag)}` : '/api/accumulation';
+                    return fetch(url)
+                        .then(res => {
+                            if (!res.ok) throw new Error('api not available');
+                            return res.json();
+                        })
+                        .catch(() => fetch('./data/accumulation.json')
+                            .then(res => res.json())
+                            .then(data => {
+                                let items = data.items;
+                                if (tag) items = items.filter(i => i.tags.includes(tag));
+                                items.sort((a, b) => b.date.localeCompare(a.date));
+                                return { items };
+                            })
+                        );
+                }
+
+                // 加载标签
+                async function loadTags() {
+                    const data = await loadTagsData();
+                    const bar = document.getElementById("tagsBar");
+                    data.tags.forEach(tag => {
+                        const btn = document.createElement("button");
+                        btn.className = "tag-btn px-3 py-1 rounded-full text-sm border border-stone-300";
+                        btn.textContent = tag;
+                        btn.dataset.tag = tag;
+                        btn.addEventListener("click", () => {
+                            currentTag = tag;
+                            document.querySelectorAll(".tag-btn").forEach(b => b.classList.remove("tag-active"));
+                            btn.classList.add("tag-active");
+                            loadList();
+                        });
+                        bar.appendChild(btn);
+                    });
+                }
+
+                // 加载列表
+                async function loadList() {
+                    const data = await loadListData(currentTag);
+                    const list = document.getElementById("extractList");
+                    list.innerHTML = "";
+
+                    if (data.items.length === 0) {
+                        list.innerHTML = '<p class="text-stone-500 text-center py-8">暂无相关内容</p>';
+                        return;
+                    }
+
+                    data.items.forEach(item => {
+                        const card = document.createElement("div");
+                        card.className = "bg-white rounded-xl p-5 shadow-sm border border-stone-200";
+                        card.innerHTML = `
+                            <p class="text-lg leading-relaxed text-stone-800 mb-4">${item.content}</p>
+                            <div class="flex justify-between items-center">
+                                <div class="text-sm text-stone-500">
+                                    <span>${item.source}</span> · <span>${item.author}</span>
+                                </div>
+                                ${item.source_url ? `<a href="${item.source_url}" target="_blank" class="text-sm text-stone-600 hover:text-stone-900 underline">查看原文</a>` : ''}
+                            </div>
+                            <div class="mt-3 flex gap-2">
+                                ${item.tags.map(t => `<span class="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded">${t}</span>`).join("")}
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                }
+
+                // 全部标签按钮事件
+                document.querySelector('.tag-btn[data-tag=""]').addEventListener("click", () => {
+                    currentTag = "";
+                    document.querySelectorAll(".tag-btn").forEach(b => b.classList.remove("tag-active"));
+                    document.querySelector('.tag-btn[data-tag=""]').classList.add("tag-active");
+                    loadList();
+                });
+
+                // 初始化
+                loadTags();
+                loadList();
+    </script>
+</body>
+</html>
