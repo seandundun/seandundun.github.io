@@ -23,7 +23,7 @@ ACCESS_TOKEN_EXPIRE_DAYS = 7  # 登录有效期7天
 ADMIN_USERS = {
     "admin": {
         "username": "admin",
-        "hashed_password": "$2b$12$Nyo1FQs9x6mVAvPqMdR/y.sb548v2yL8aT84Ls/XYIsIYTc8nxTvy"
+        "hashed_password": "$2b$12$xjJGyzTkafRJTxZSw6HstetBj1zi/0eJI2HalLsoAaL36gIRo1F3G"
     }
 }
 
