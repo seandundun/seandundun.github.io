@@ -1,15 +1,15 @@
 {
   "title": "雾林密符",
   "author": "肖恩",
-  "cover": "./assets/cover.jpeg",
-  "description": "一个男孩走进雾岭老林，寻找失踪的父亲，却意外唤醒了一座山的秘密 —— 当黑云压顶的时候，有的人把自己变成了光。",
+  "cover": "./assets/cover.png",
+  "description": "一个男孩走进雾岭老林，寻找失踪的父亲，却意外唤醒了一座山的秘密。",
   "chapters": [
     {
-      "id": 4,
+      "id": 1,
       "title": "第一章 阳光森林"
     },
     {
-      "id": 5,
+      "id": 2,
       "title": "第二章 会说话的狐狸"
     }
   ]
